@@ -46,6 +46,7 @@ import java.io.ObjectOutputStream;
 import java.util.List;
 import java.util.Set;
 
+import org.jruby.RubyProcess.Sys;
 import org.jruby.anno.JRubyClass;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.ClassIndex;
@@ -394,6 +395,9 @@ public class RubyObject extends RubyBasicObject {
     public static boolean equalInternal(final ThreadContext context, final IRubyObject a, final IRubyObject b) {
         if (a == b) return true;
         if (a instanceof RubySymbol) return false;
+        if (a instanceof RubyInteger) {
+            return invokedynamic(context, a, OP_EQUAL, b).isTrue();    
+        }
 
         return fastNumEqualInternal(context, a, b);
     }
