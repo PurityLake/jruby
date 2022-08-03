@@ -3991,7 +3991,7 @@ public class RubyArray<T extends IRubyObject> extends RubyObject implements List
 
     protected IRubyObject sortInternal(final ThreadContext context, final boolean honorOverride) {
         try {
-            Arrays.sort(values, begin, begin + realLength, new DefaultComparator(context, honorOverride) {
+            QSort.quickSort(this, begin, begin + realLength - 1, new DefaultComparator(context, honorOverride) {
                 protected int compareGeneric(IRubyObject o1, IRubyObject o2) {
                     int result = super.compareGeneric(o1, o2);
                     modifyCheck();
@@ -4013,6 +4013,40 @@ public class RubyArray<T extends IRubyObject> extends RubyObject implements List
     // @Deprecated
     protected static int compareOthers(ThreadContext context, IRubyObject o1, IRubyObject o2) {
         return DefaultComparator.compareGeneric(context, o1, o2);
+    }
+
+    static class QSort {
+        public static void quickSort(RubyArray arr, int begin, int end, Comparator<IRubyObject> comparator) {
+            if (begin < end) {
+                int partitionIndex = partition(arr, begin, end, comparator);
+
+                quickSort(arr, begin, partitionIndex - 1, comparator);
+                quickSort(arr, partitionIndex+1, end, comparator);
+            }
+        }
+
+        private static int partition(RubyArray arr, int begin, int end, Comparator<IRubyObject> comparator) {
+            IRubyObject pivot = arr.entry(end);
+            int i = (begin - 1);
+
+            for (int j = begin; j < end; j++) {
+                IRubyObject value = arr.entry(j);
+                if (comparator.compare(value, pivot) <= 0) {
+                    i++;
+
+                    IRubyObject temp = arr.entry(i);
+                    arr.safeArraySet(arr.values, i, value);
+                    arr.safeArraySet(arr.values, j, temp);
+                }
+            }
+
+            i++;
+            IRubyObject temp = arr.entry(i);
+            arr.safeArraySet(arr.values, i, pivot);
+            arr.safeArraySet(arr.values, end, temp);
+
+            return i;
+        }
     }
 
     public static class DefaultComparator implements Comparator<IRubyObject> {
@@ -4123,13 +4157,12 @@ public class RubyArray<T extends IRubyObject> extends RubyObject implements List
     protected IRubyObject sortInternal(final ThreadContext context, final Block block) {
         // block code can modify, so we need to iterate
         unpack();
-        IRubyObject[] newValues = IRubyObject.array(realLength);
         int length = realLength;
 
-        copyInto(newValues, 0);
         CallSite gt = sites(context).op_gt_sort;
         CallSite lt = sites(context).op_lt_sort;
-        Arrays.sort(newValues, 0, length, new BlockComparator(context, block, gt, lt) {
+
+        QSort.quickSort(this, 0, length - 1, new BlockComparator(context, block, gt, lt) {
             @Override
             public int compare(IRubyObject obj1, IRubyObject obj2) {
                 int result = super.compare(obj1, obj2);
@@ -4137,8 +4170,7 @@ public class RubyArray<T extends IRubyObject> extends RubyObject implements List
                 return result;
             }
         });
-
-        values = newValues;
+        
         begin = 0;
         realLength = length;
         return this;
